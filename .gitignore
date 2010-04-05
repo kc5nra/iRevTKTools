@@ -1,0 +1,6 @@
+.*
+build/*
+RevTKTools.xcodeproj/*.mode1v3
+RevTKTools.xcodeproj/*.pbxuser
+!.gitignore
+
