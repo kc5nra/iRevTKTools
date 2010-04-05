@@ -10,7 +10,7 @@ static NSString *kRTKKanjiDic2File = @"kanjidic2";
 static NSString *kRTKKanjiDic2FileType = @"xml";
 
 static NSString *kRTKSelectHeisigKanjiXPath = @"//kanjidic2/character[dic_number/dic_ref[@dr_type='heisig']]";
-static NSString *kRTKSelectHeisigKanji3XPath = @"//kanjidic2/character[dic_number/dic_ref[@dr_type='heisig'] >= 2043]";
+static NSString *kRTKSelectIsHeisigKanji3XPath = @".[dic_number/dic_ref[@dr_type='heisig'] > 2048]";
 static NSString *kRTKSelectHeisigFrameXPath = @"dic_number/dic_ref[@dr_type='heisig']/text()";
 static NSString *kRTKSelectOnYomiXPath = @"reading_meaning/rmgroup/reading[@r_type='ja_on']/text()";
 static NSString *kRTKSelectStrokeCountXPath = @"misc/stroke_count/text()";
@@ -19,6 +19,7 @@ static NSString *kRTKSelectKanjiLiteralXPath = @"literal/text()";
 void get_rtk1(NSMutableDictionary *dictionary, NSString *fileName, NSString *fileType);
 void get_rtk3(NSMutableDictionary *dictionary, NSString *fileName, NSString *fileType);
 void get_kanjidic2(NSMutableDictionary *dictionary, NSString *fileName, NSString *fileType);
+
 NSString * getSingleNodeValueWithXPath(NSXMLNode *node, NSString *xpath);
 
 int 
@@ -33,10 +34,20 @@ main (
 	get_rtk1(heisig, kRTKZigFile, kRTKZigFileType);
 	get_rtk3(heisig, kRTK3File, kRTK3FileType);
 	get_kanjidic2(heisig, kRTKKanjiDic2File, kRTKKanjiDic2FileType);
-	NSLog(@"%@", heisig);
+
+	NSData *xmlData = [NSPropertyListSerialization dataFromPropertyList:heisig format:NSPropertyListXMLFormat_v1_0 errorDescription: nil];
+	[xmlData writeToFile:@"RTKData.plist" atomically:YES];
 	
     [pool drain];
     return 0;
+}
+
+NSNumber *
+getNumber(NSString *number) {
+	NSNumberFormatter * f = [[NSNumberFormatter alloc] init];
+	NSNumber * myNumber = [f numberFromString: number];
+	[f release];
+	return myNumber;
 }
 
 void 
@@ -45,9 +56,6 @@ get_rtk1(
 	NSString *fileName, 
 	NSString *fileType) 
 {
-
-	NSArray *keys = [[NSArray alloc] initWithObjects: @"heisigNumber", @"kanji", @"keyword", @"strokeCount", @"indexOrdinal", @"lessonNumber", nil];
-	
 	NSError *error;
 	
 	NSString *path = [[NSBundle mainBundle] pathForResource:fileName ofType:fileType ];
@@ -63,10 +71,18 @@ get_rtk1(
 				NSLog(@"Comment - %@", line);
 			} else {
 				NSArray *components = [line componentsSeparatedByString:@":"];
-				NSMutableDictionary *childDictionary = [[NSMutableDictionary alloc] initWithObjects: components forKeys:keys];
-				[childDictionary removeObjectForKey: @"indexOrdinal"];
-				NSString *heisigNumber = [childDictionary valueForKey: @"heisigNumber"];
-				[dictionary setValue:childDictionary forKey:heisigNumber];
+				int i = 0;
+				NSMutableDictionary *childDictionary = [[NSMutableDictionary alloc] init];
+				
+				NSString *heisigNumberString = [components objectAtIndex: 0];
+				
+				[childDictionary setValue:getNumber([components objectAtIndex:i++]) forKey:@"heisigNumber"];
+				[childDictionary setValue:[components objectAtIndex:i++]			forKey:@"kanji"];
+				[childDictionary setValue:[components objectAtIndex:i++]			forKey:@"keyword"];
+				[childDictionary setValue:getNumber([components objectAtIndex:i++]) forKey:@"strokeCount"];
+				[childDictionary setValue:getNumber([components objectAtIndex:i++]) forKey:@"lessonNumber"];
+				
+				[dictionary setValue:childDictionary forKey:heisigNumberString];
 			}
 		}
 	}
@@ -89,15 +105,29 @@ get_rtk3(
 
 	for(NSString *line in lines) {
 		if ([line length] > 0) {
-			NSString *frameNumber = [line substringToIndex: 4];
+			NSString *heisigNumberString = [line substringToIndex: 4];
+			NSNumber *heisigNumber = getNumber(heisigNumberString);
 			NSString *keyword = [line substringFromIndex: 6];
 			keyword = [keyword stringByTrimmingCharactersInSet: [NSCharacterSet whitespaceAndNewlineCharacterSet]];
-			NSMutableDictionary *childDictionary = [[NSMutableDictionary alloc] initWithObjectsAndKeys:frameNumber, @"heisigNumber", keyword, @"keyword", nil];
-			NSString *heisigNumber = [childDictionary valueForKey: @"heisigNumber"];
-			[dictionary setValue:childDictionary forKey:heisigNumber];
+			NSMutableDictionary *childDictionary = [[NSMutableDictionary alloc] initWithObjectsAndKeys:heisigNumber, @"heisigNumber", keyword, @"keyword", nil];
+			[dictionary setValue:childDictionary forKey:heisigNumberString];
 		}
 	}
 }
+
+
+/*
+ static NSString *kRTKSelectHeisigKanjiXPath = @"//kanjidic2/character[dic_number/dic_ref[@dr_type='heisig']]";
+ static NSString *kRTKSelectHeisigKanji3XPath = @"//kanjidic2/character[dic_number/dic_ref[@dr_type='heisig'] >= 2043]";
+ static NSString *kRTKSelectHeisigFrameXPath = @"dic_number/dic_ref[@dr_type='heisig']/text()";
+ static NSString *kRTKSelectOnYomiXPath = @"reading_meaning/rmgroup/reading[@r_type='ja_on']/text()";
+ static NSString *kRTKSelectStrokeCountXPath = @"misc/stroke_count/text()";
+ static NSString *kRTKSelectKanjiLiteralXPath = @"literal/text()";
+ 
+ NSArray *keys = [[NSArray alloc] initWithObjects: @"heisigNumber", @"kanji", @"keyword", @"strokeCount", @"indexOrdinal", @"lessonNumber", nil];
+ */
+
+
 
 void 
 get_kanjidic2(
@@ -119,10 +149,11 @@ get_kanjidic2(
 
 		// find the referenced frame number in our dictionary
 		NSMutableDictionary *characterDic;
-
-		NSString *frameKey = getSingleNodeValueWithXPath(node, kRTKSelectHeisigFrameXPath);
-		if (frameKey) {
-			characterDic = [dictionary objectForKey: frameKey];
+		NSNumber *heisigNumber;
+		NSString *heisigNumberString = getSingleNodeValueWithXPath(node, kRTKSelectHeisigFrameXPath);
+		if (heisigNumberString) {
+			characterDic = [dictionary objectForKey: heisigNumberString];
+			heisigNumber = getNumber(heisigNumberString);
 		} else {
 			NSLog(@"Error, kanjidic2 node didn't contain a heisig number, but somehow passed the xpath");
 			NSLog(@"%@", node);
@@ -130,14 +161,24 @@ get_kanjidic2(
 		}
 				
 		// if RTK 3 kanji
-		if ([node nodesForXPath: kRTKSelectHeisigKanji3XPath error:nil]) {
-			
+		
+		if ([[node nodesForXPath: kRTKSelectIsHeisigKanji3XPath error:nil] count] > 0) {
+			NSString *kanji = getSingleNodeValueWithXPath(node, kRTKSelectKanjiLiteralXPath);
+			NSNumber *strokeCount = getNumber(getSingleNodeValueWithXPath(node, kRTKSelectStrokeCountXPath));
+			NSNumber *lessonNumber = [NSNumber numberWithInt: 57];
+			[characterDic setValue:kanji forKey:@"kanji"];
+			[characterDic setValue:strokeCount forKey: @"strokeCount"];
+			[characterDic setValue:lessonNumber forKey:@"lessonNumber"];
+			[characterDic setValue:heisigNumber forKey:@"heisigNumber"];
 		}
+		
+		NSString *onYomi = getSingleNodeValueWithXPath(node, kRTKSelectOnYomiXPath);
+		[characterDic setValue:onYomi forKey:@"onYomi"];
 		
 		
 	}
 }
-	
+
 NSString * 
 getSingleNodeValueWithXPath(
 	NSXMLNode *node, 
