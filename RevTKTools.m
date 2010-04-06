@@ -10,7 +10,7 @@ static NSString *kRTKKanjiDic2File = @"kanjidic2";
 static NSString *kRTKKanjiDic2FileType = @"xml";
 
 static NSString *kRTKSelectHeisigKanjiXPath = @"//kanjidic2/character[dic_number/dic_ref[@dr_type='heisig']]";
-static NSString *kRTKSelectIsHeisigKanji3XPath = @".[dic_number/dic_ref[@dr_type='heisig'] > 2048]";
+static NSString *kRTKSelectIsHeisigKanji3XPath = @".[dic_number/dic_ref[@dr_type='heisig'] > 2042]";
 static NSString *kRTKSelectHeisigFrameXPath = @"dic_number/dic_ref[@dr_type='heisig']/text()";
 static NSString *kRTKSelectOnYomiXPath = @"reading_meaning/rmgroup/reading[@r_type='ja_on']/text()";
 static NSString *kRTKSelectStrokeCountXPath = @"misc/stroke_count/text()";
